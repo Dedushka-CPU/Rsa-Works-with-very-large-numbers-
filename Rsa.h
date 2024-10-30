@@ -2,281 +2,256 @@
 #define RSA_H
 
 #include <iostream>
-#include <vector>
 #include <string>
 #include <algorithm>
 #include <cstdint>
+#include <stdexcept>
+
+using std::cout;
+using std::string;
+using std::endl;
 
 class BigNum {
 private:
-    std::vector<uint64_t> data;
-    static const int BASE_BITS = 64;
+    string num;
 
 public:
-    BigNum(const std::string& number) {
-        *this = parseString(number);
+    BigNum() : num("0") {}
+
+    BigNum(const string& value) : num(value) {}
+
+    void Print() const {
+        cout << num;
     }
 
-    BigNum(uint64_t value = 0) {
-        if (value > 0) {
-            data.push_back(value);
-        }
+    bool isSmaller(const string& str1, const string& str2) const {
+        if (str1.length() < str2.length()) return true;
+        if (str1.length() > str2.length()) return false;
+        return str1 < str2;
     }
-    BigNum(char c) {
-        data.push_back(static_cast<uint64_t>(c)); 
-    }
-    BigNum(int value) {
-        if (value < 0) {
-            throw std::invalid_argument("Negative value not supported");
-        }
-        if (value > 0) {
-            data.push_back(static_cast<uint64_t>(value)); 
-        }
-    }
-    uint64_t toUInt() const {
-        uint64_t result = 0;
 
-        for (size_t i = 0; i < data.size(); ++i) {
-            result += data[i] * (1ULL << (i * BASE_BITS)); 
-        }
+    BigNum operator+(const BigNum& str) const {
+        string result;
+        int carry = 0;
+        string n1 = num;
+        string n2 = str.num;
+        std::reverse(n1.begin(), n1.end());
+        std::reverse(n2.begin(), n2.end());
 
-        return result;
-    }
-    char toChar() const {
-        uint64_t num = toUInt(); 
+        int maxLen = std::max(n1.size(), n2.size());
+        n1.resize(maxLen, '0');
+        n2.resize(maxLen, '0');
 
-        if (num < 0 || num > 255) {
-            throw std::out_of_range("BigNum value out of range for char");
+        for (int i = 0; i < maxLen; i++) {
+            int digitSum = (n1[i] - '0') + (n2[i] - '0') + carry;
+            carry = digitSum / 10;
+            result.push_back((digitSum % 10) + '0');
         }
 
-        return static_cast<char>(num);
+        if (carry) {
+            result.push_back(carry + '0');
+        }
+        std::reverse(result.begin(), result.end());
+
+        return BigNum(result);
     }
 
-    BigNum operator+(const BigNum& other) const {
-        BigNum result;
-        uint64_t carry = 0;
-        size_t maxSize = std::max(data.size(), other.data.size());
+    string Minus(const string& str1, const string& str2) const {
+        string n1 = str1;
+        string n2 = str2;
+        string result;
 
-        for (size_t i = 0; i < maxSize || carry; ++i) {
-            uint64_t sum = carry;
-            if (i < data.size()) sum += data[i];
-            if (i < other.data.size()) sum += other.data[i];
+        bool isNegative = false;
 
-            carry = (sum < carry) ? 1 : 0;
-            result.data.push_back(sum);
+        if (isSmaller(n1, n2)) {
+            std::swap(n1, n2);
+            isNegative = true;
         }
 
-        return result;
+        std::reverse(n1.begin(), n1.end());
+        std::reverse(n2.begin(), n2.end());
+
+        n2.resize(n1.size(), '0');
+
+        int borrow = 0;
+        for (size_t i = 0; i < n1.size(); i++) {
+            int sub = (n1[i] - '0') - (n2[i] - '0') - borrow;
+            if (sub < 0) {
+                sub += 10;
+                borrow = 1;
+            } else {
+                borrow = 0;
+            }
+            result.push_back(sub + '0');
+        }
+
+        while (result.size() > 1 && result.back() == '0') {
+            result.pop_back();
+        }
+
+        std::reverse(result.begin(), result.end());
+
+        if (isNegative) {
+            result = "-" + result;
+        }
+
+        return result.empty() ? "0" : result;
     }
 
-   static BigNum Nod(BigNum a, BigNum b) {
-        while (b != BigNum(0)) { 
+    BigNum operator-(const BigNum& str) const {
+        string n1 = num;
+        string n2 = str.num;
+
+        if (isSmaller(n1, n2)) {
+            return BigNum("0"); 
+        }
+
+        string result;
+        int borrow = 0;
+
+        std::reverse(n1.begin(), n1.end());
+        std::reverse(n2.begin(), n2.end());
+
+        n2.resize(n1.size(), '0');
+
+        for (size_t i = 0; i < n1.size(); i++) {
+            int sub = (n1[i] - '0') - (n2[i] - '0') - borrow;
+            if (sub < 0) {
+                sub += 10;
+                borrow = 1;
+            } else {
+                borrow = 0;
+            }
+            result.push_back(sub + '0');
+        }
+
+        while (result.size() > 1 && result.back() == '0') {
+            result.pop_back();
+        }
+
+        std::reverse(result.begin(), result.end());
+        return BigNum(result);
+    }
+
+    friend BigNum operator%(const BigNum& dividend, const BigNum& divisor) {
+        BigNum dividendCopy = dividend;  
+        BigNum divisorCopy = divisor; 
+        BigNum x1=dividendCopy/divisorCopy;
+        BigNum res=x1*divisorCopy;
+        res=dividendCopy-res;
+        return BigNum(res);
+    }
+
+    bool operator!=(const BigNum& other) const {
+        return num != other.num;
+    }
+    
+    bool operator==(const BigNum& other) const {
+        return num == other.num;
+    }
+    
+    bool operator>(const BigNum& other) const {
+        return num > other.num;
+    }
+    
+    static BigNum Nod(BigNum a, BigNum b) {
+        while (b != BigNum("0")) {
             BigNum temp = b;
-            b = a % b; 
+            b = a % b;
             a = temp;
         }
         return a;
     }
 
-   BigNum operator-(const BigNum& other) const {
-        BigNum result;
-        uint64_t borrow = 0;
-
-        if (*this == other) {
-            return BigNum(0);
+    BigNum operator/(const BigNum& divisor) const {
+        if (divisor == BigNum("0")) {
+            throw std::invalid_argument("Cannot divide by zero");
         }
 
-        if (*this < other) {
-            throw std::invalid_argument("Result would be negative"); 
-        }
+        string quotient = "";
+        string remainder = "";
 
-        for (size_t i = 0; i < data.size(); ++i) {
-            uint64_t currentOther = (i < other.data.size()) ? other.data[i] : 0;
-            uint64_t diff = data[i] - (borrow + currentOther);
+        for (char digit : num) {
+            if(remainder=="0"){
+                remainder = digit; 
+            }else{
+                remainder += digit; 
+            }
             
-            if (data[i] < borrow + currentOther) {
-                borrow = 1;
-                diff += (1ULL << BASE_BITS); 
-            } else {
-                borrow = 0;
+            int count = 0;
+
+            if (isSmaller(remainder, divisor.num)) {
+                if (!quotient.empty()) {
+                    quotient += '0'; 
+                }
+                continue; 
             }
 
-            result.data.push_back(diff);
+            while (!isSmaller(remainder, divisor.num)) {
+                remainder = Minus(remainder, divisor.num);
+                count++;
+                }
+
+            if (remainder == "0" ) {
+                quotient += std::to_string(count);
+                remainder = "0";
+            } else {
+                quotient += std::to_string(count);
+            }
         }
 
-        while (result.data.size() > 1 && result.data.back() == 0) {
-            result.data.pop_back();
+        while (quotient.length() > 1 && quotient[0] == '0') {
+            quotient.erase(0, 1);
         }
 
-        return result;
+        return BigNum(quotient.empty() ? "0" : quotient);
     }
-
 
     BigNum operator*(const BigNum& other) const {
-        BigNum result;
-        result.data.resize(data.size() + other.data.size(), 0);
+        string num1 = num;
+        string num2 = other.num;
+        int len1 = num1.size();
+        int len2 = num2.size();
 
-        for (size_t i = 0; i < data.size(); ++i) {
-            uint64_t carry = 0;
-            for (size_t j = 0; j < other.data.size() || carry; ++j) {
-                __uint128_t product = static_cast<__uint128_t>(data[i]) * (j < other.data.size() ? other.data[j] : 0) + result.data[i + j] + carry;
-                result.data[i + j] = static_cast<uint64_t>(product);
-                carry = static_cast<uint64_t>(product >> BASE_BITS);
+        string result(len1 + len2, '0');
+
+        for (int i = len1 - 1; i >= 0; --i) {
+            int carry = 0;
+            int digit1 = num1[i] - '0';
+
+            for (int j = len2 - 1; j >= 0; --j) {
+                int digit2 = num2[j] - '0';
+                int sum = (digit1 * digit2) + (result[i + j + 1] - '0') + carry;
+                carry = sum / 10;
+                result[i + j + 1] = (sum % 10) + '0';
             }
+            result[i] += carry;
         }
 
-        while (result.data.size() > 1 && result.data.back() == 0) {
-            result.data.pop_back();
+        size_t start = result.find_first_not_of('0');
+        if (start != string::npos) {
+            return BigNum(result.substr(start));
+        } else {
+            return BigNum("0");
         }
-
-        return result;
-    }
-    std::pair<BigNum, uint64_t> divide(const BigNum& divisor) const {
-        BigNum quotient;
-        BigNum remainder = *this;
-
-        for (int i = data.size() * BASE_BITS - 1; i >= 0; --i) {
-            remainder = (remainder * 2);
-            if (i < data.size() * BASE_BITS) {
-                remainder = remainder + ((data[i / BASE_BITS] >> (i % BASE_BITS)) & 1);
-            }
-            if (remainder >= divisor) {
-                remainder = remainder - divisor;
-                quotient = (quotient * 2) + BigNum(1);
-            } else {
-                quotient = quotient * 2;
-            }
-        }
-
-        return {quotient, remainder.data.empty() ? 0 : remainder.data[0]};
-    }
-
-    bool operator<(const BigNum& other) const {
-        if (data.size() != other.data.size())
-            return data.size() < other.data.size();
-        for (int i = data.size() - 1; i >= 0; --i) {
-            if (data[i] != other.data[i])
-                return data[i] < other.data[i];
-        }
-        return false;
-    }
-
-    bool operator==(const BigNum& other) const {
-        return data == other.data;
-    }
-
-    bool operator!=(const BigNum& other) const {
-        return !(*this == other);
-    }
-
-    bool operator<=(const BigNum& other) const {
-        return *this < other || *this == other;
-    }
-
-    bool operator>(const BigNum& other) const {
-        return other < *this;
-    }
-
-    bool operator>=(const BigNum& other) const {
-        return !(*this < other);
     }
 
     static BigNum PowNum(BigNum base, BigNum exp, BigNum mod) {
-        BigNum res(1);
-        while (exp > BigNum(0)) {
-            if (exp.data[0] % 2 == 1) {
+        BigNum res("1");
+        while (exp > BigNum("0")) {
+            if (exp.num.back() % 2 == 1) {
                 res = (res * base) % mod;
             }
             base = (base * base) % mod;
-            exp = exp / BigNum(2); 
+            exp = exp / BigNum("2");
         }
         return res;
     }
 
-    BigNum& operator=(const BigNum& other) {
-        if (this != &other) { 
-            data = other.data;
-        }
-        return *this; 
+    char toASCII() const {
+        int asciiValue = std::stoi(num);  
+        return static_cast<char>(asciiValue);  
     }
-
-    friend BigNum operator/(const BigNum& a, const BigNum& b) {
-        if (b.isZero()) {
-            throw std::invalid_argument("Division by zero");
-        }
-        if (a < b) {
-            return BigNum(0);
-        }
-
-        BigNum res(0);
-        BigNum remainder = a;
-
-        while (remainder >= b) {
-            remainder = remainder - b; 
-            res = res + BigNum(1);     
-        }
-
-        return res; 
-    }
-
-    friend BigNum operator %(const BigNum& a,const BigNum& b){
-        if(a<b){
-            return a;
-        }
-        BigNum remainder = a;
-
-        while (remainder >= b) {
-            remainder = remainder - b;
-        }
-        return remainder;
-    }
-
-    void print() const {
-        if (data.empty()) {
-            std::cout << "0";
-            return;
-        }
-
-        BigNum temp = *this;
-        std::string result;
-
-        while (!temp.isZero()) {
-            uint64_t remainder = temp.divideBy10();
-            result.push_back(remainder + '0');
-        }
-
-        std::reverse(result.begin(), result.end());
-        std::cout << result ;
-    }
-    BigNum parseString(const std::string& number) const {
-        BigNum result;
-        for (char c : number) {
-            result = result * 10 + (c - '0');
-        }
-        return result;
-    }
-
-    bool isZero() const {
-        return data.size() == 1 && data[0] == 0;
-    }
-
-    uint64_t divideBy10() {
-        uint64_t remainder = 0;
-
-        for (int i = data.size() - 1; i >= 0; --i) {
-            __uint128_t current = (static_cast<__uint128_t>(remainder) << BASE_BITS) + data[i];
-            data[i] = current / 10;
-            remainder = current % 10;
-        }
-
-        while (data.size() > 1 && data.back() == 0) {
-            data.pop_back();
-        }
-
-        return remainder;
-    }
-
-    
 };
 
 #endif // RSA_H
